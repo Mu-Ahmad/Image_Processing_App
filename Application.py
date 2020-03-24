@@ -4,6 +4,28 @@ import numpy as np
 def dummy(val):
     pass
 
+def renderPreview(img):
+    if img.shape[1]*img.shape[0] >= 105000:
+        ratio = img.shape[1]/img.shape[0]
+        height = int(round((105000/ratio)**0.5, 0))
+        width = int(round(height*ratio))
+        return cv2.resize(img, (width,height))
+    else:
+        return img
+    
+
+def saveOutput(img, count, applyFilter=True):
+    kernel = cv2.getTrackbarPos('Kernels', 'App')
+    contrast = cv2.getTrackbarPos('Contrast', 'App')
+    brightness = cv2.getTrackbarPos('Brightness', 'App')
+    if applyFilter:
+        _filter = cv2.getTrackbarPos('Filters', 'App')
+        filtered = filters[_filter](img)
+    else:
+        filtered = img
+    modified = cv2.filter2D(filtered, -1, kernels[kernel])
+    modified = cv2.convertScaleAbs(modified, alpha=contrast*0.04, beta=brightness-75)
+    cv2.imwrite(f'output\output{count}_{fileName}', modified)
 
 identityKernel = np.array([[0,0,0],[0,1,0],[0,0,0]])
 sharpenKernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]])
@@ -51,8 +73,9 @@ kernels = [identityKernel, sharpenKernel, boxBlur, gaussianKernel1,
 
 filters = [identity, enhanceDetails, style, pencilSketch, drawSketchBW, solidSketchBW, drawSketch, solidSketch]
 
-fileName = 'test0.jpg'
-colorOriginal = cv2.imread(fileName)
+fileName = 'special9.jpeg'
+_colorOriginal = cv2.imread(fileName)
+colorOriginal = renderPreview(_colorOriginal.copy())
 grayOriginal = cv2.cvtColor(colorOriginal, cv2.COLOR_BGR2GRAY)
 hsvOriginal = cv2.cvtColor(colorOriginal, cv2.COLOR_BGR2HSV)
 colorModified = colorOriginal.copy()
@@ -67,7 +90,7 @@ cv2.createTrackbar('Brightness', 'App', 75, 150, dummy)
 cv2.createTrackbar('Kernels', 'App', 0, len(kernels)-1, dummy)
 cv2.createTrackbar('Filters', 'App', 0, len(filters)-1, dummy)
 cv2.createTrackbar('Color', 'App', 0, 2, dummy)
-count = 1
+count = 0
 p_filter = 1
 while 1:
     colorScale = cv2.getTrackbarPos('Color', 'App')
@@ -86,11 +109,25 @@ while 1:
     elif k == ord('s'):
         count+=1
         if colorScale == 0:
-            cv2.imwrite(f'output{count}_{fileName}', colorModified)
+            try:
+                saveOutput(img=_colorOriginal, count=count)
+            except:
+                print('Éxception')
+                cv2.imwrite(f'output/output{count}_{fileName}', colorModified)
         elif colorScale == 1:
-            cv2.imwrite(f'output{count}_{fileName}', grayModified)
+            try:
+                temp = cv2.cvtColor(_colorOriginal, cv2.COLOR_BGR2GRAY)
+                saveOutput(img=temp, count=count, applyFilter=False)
+            except:
+                print('Éxception')
+                cv2.imwrite(f'output/output{count}_{fileName}', grayModified)
         else:
-            cv2.imwrite(f'output{count}_{fileName}', hsvModified)
+            try:
+                temp = cv2.cvtColor(_colorOriginal, cv2.COLOR_BGR2HSV)
+                saveOutput(img=temp, count=count)
+            except:
+                print('Éxception')
+                cv2.imwrite(f'output/output{count}_{fileName}', colorModified)
     
     kernel = cv2.getTrackbarPos('Kernels', 'App')
     contrast = cv2.getTrackbarPos('Contrast', 'App')
