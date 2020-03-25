@@ -29,3 +29,4 @@ To Run The Script:
 **Note:**
 
 Presests and Filters are distructive in nature to eachother, rest of the affects can be applied on top of each other.
+Presets have high computational cost so they might not work properly on some machines for ultra high resolution pictures.
