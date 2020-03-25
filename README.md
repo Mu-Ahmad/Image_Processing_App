@@ -2,6 +2,8 @@
 
 This simple app let you apply changes to contrast, brightness of and some cool filters to your pictures.
 
+![ScreenShot1] (https://github.com/Mu-Ahmad/Image_Processing_App/blob/master/Screen%20Shots/Screenshot_01.png)
+
 ## Usage:
 To Run The Script:
 
