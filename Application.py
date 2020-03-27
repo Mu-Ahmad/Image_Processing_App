@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import argparse
 from scipy.interpolate import UnivariateSpline
 
 def dummy(val):
@@ -15,15 +16,17 @@ def renderPreview(img):
         return img
     
 
-def saveOutput(img, count, applyFilter=True):
+def saveOutput(img, count, applyFilter=True, applyPreset=True):
     kernel = cv2.getTrackbarPos('Kernels', 'App')
     contrast = cv2.getTrackbarPos('Contrast', 'App')
     brightness = cv2.getTrackbarPos('Brightness', 'App')
     gamma = cv2.getTrackbarPos('Gamma', 'App')
-    _filter = cv2.getTrackbarPos('Filters', 'App')
     if applyFilter:
         _filter = cv2.getTrackbarPos('Filters', 'App')
         filtered = filters[_filter](img)
+    elif applyPreset:
+        preset = cv2.getTrackbarPos('Presets', 'App')
+        filtered = presets[preset](img)
     else:
         filtered = img
     modified = cv2.filter2D(filtered, -1, kernels[kernel])
@@ -55,10 +58,30 @@ def _create_LUT_8UC1(x, y):
     
 def warmingFilter(img):
         incrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 70, 140, 210, 256])
-        
         decrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 30,  80, 120, 192])
-        
         cB, cG, cR = cv2.split(img)
+        cR = cv2.LUT(cR, incrChLut).astype(np.uint8)
+        cB = cv2.LUT(cB, decrChLut).astype(np.uint8)
+        img = cv2.merge((cB, cG, cR))
+        cH, cS, cV = cv2.split(cv2.cvtColor(img, cv2.COLOR_RGB2HSV))
+        cS = cv2.LUT(cS, incrChLut).astype(np.uint8)
+        return cv2.cvtColor(cv2.merge((cH, cS, cV)), cv2.COLOR_HSV2RGB)
+    
+def warmingFilter1(img):
+        incrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 70, 180, 210, 256])
+        decrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 30,  80, 120, 192])
+        cB, cG, cR = cv2.split(img)
+        cR = cv2.LUT(cR, incrChLut).astype(np.uint8)
+        cB = cv2.LUT(cB, decrChLut).astype(np.uint8)
+        img = cv2.merge((cB, cG, cR))
+        cH, cS, cV = cv2.split(cv2.cvtColor(img, cv2.COLOR_RGB2HSV))
+        cS = cv2.LUT(cS, incrChLut).astype(np.uint8)
+        return cv2.cvtColor(cv2.merge((cH, cS, cV)), cv2.COLOR_HSV2RGB)
+    
+def creativeFilter(img):
+        incrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 70, 140, 210, 256])
+        decrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 30,  80, 120, 192])
+        cR, cG, cB = cv2.split(img)
         cR = cv2.LUT(cR, incrChLut).astype(np.uint8)
         cB = cv2.LUT(cB, decrChLut).astype(np.uint8)
         img = cv2.merge((cB, cG, cR))
@@ -68,9 +91,7 @@ def warmingFilter(img):
     
 def coolingFilter(img):
         incrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 70, 140, 210, 256])
-        
         decrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 30,  80, 120, 192])
-        
         cB, cG, cR = cv2.split(img)
         cB = cv2.LUT(cB, incrChLut).astype(np.uint8)
         cR = cv2.LUT(cR, decrChLut).astype(np.uint8)
@@ -78,6 +99,35 @@ def coolingFilter(img):
         cH, cS, cV = cv2.split(cv2.cvtColor(img, cv2.COLOR_RGB2HSV))
         cS = cv2.LUT(cS, decrChLut).astype(np.uint8)
         return cv2.cvtColor(cv2.merge((cH, cS, cV)), cv2.COLOR_HSV2RGB)
+    
+def blueFilter(img):
+        incrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 70, 140, 210, 256])
+        decrChLut = _create_LUT_8UC1([0, 64, 128, 192, 256],[0, 30,  80, 120, 192])
+        cR, cG, cB = cv2.split(img)
+        cB = cv2.LUT(cB, incrChLut).astype(np.uint8)
+        cR = cv2.LUT(cR, decrChLut).astype(np.uint8)
+        img = cv2.merge((cB, cG, cR))
+        cH, cS, cV = cv2.split(cv2.cvtColor(img, cv2.COLOR_RGB2HSV))
+        cS = cv2.LUT(cS, decrChLut).astype(np.uint8)
+        return cv2.cvtColor(cv2.merge((cH, cS, cV)), cv2.COLOR_HSV2RGB)
+    
+def reduction(img):
+    lut = np.zeros((1,256), np.uint8)
+    lut[0][0:52] = 51
+    lut[0][52:103] = 102
+    lut[0][103:155] = 154
+    lut[0][155:205] = 204
+    lut[0][205:256] = 255
+    return cv2.LUT(img, lut).astype(np.uint8)
+
+def grayFilter(img):
+    lut = np.zeros((1,256), np.uint8)
+    lut[0][0:52] = 51
+    lut[0][52:103] = 102
+    lut[0][103:155] = 154
+    lut[0][155:205] = 204
+    lut[0][205:256] = 255
+    return cv2.LUT(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), lut).astype(np.uint8)
 
 def identity(img):
     return img
@@ -114,10 +164,17 @@ def drawSketch(img):
 kernels = [identityKernel, sharpenKernel, boxBlur, gaussianKernel1, 
            gaussianKernel2, gaussianKernel3, edgeDetector1, edgeDetector2]
 
-filters = [identity, warmingFilter, coolingFilter, enhanceDetails, pencilSketch,
-           style, drawSketchBW, solidSketchBW, drawSketch, solidSketch]
+presets = [identity, enhanceDetails, style, drawSketch, drawSketchBW]
 
-fileName = 'trial5.jpg'
+filters = [identity, warmingFilter, warmingFilter1, creativeFilter, coolingFilter,
+           blueFilter,reduction, grayFilter, pencilSketch, solidSketchBW, solidSketch]
+
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-i", "--image", required=True,
+	help="path to input image")
+args = vars(ap.parse_args())
+fileName = args["image"]
 _colorOriginal = cv2.imread(fileName)
 colorOriginal = renderPreview(_colorOriginal.copy())
 grayOriginal = cv2.cvtColor(colorOriginal, cv2.COLOR_BGR2GRAY)
@@ -133,11 +190,15 @@ cv2.createTrackbar('Contrast', 'App', 25, 100, dummy)
 cv2.createTrackbar('Brightness', 'App', 75, 150, dummy)
 cv2.createTrackbar('Gamma', 'App', 20, 100, dummy)
 cv2.createTrackbar('Kernels', 'App', 0, len(kernels)-1, dummy)
+cv2.createTrackbar('Presets', 'App', 0, len(presets)-1, dummy)
 cv2.createTrackbar('Filters', 'App', 0, len(filters)-1, dummy)
 cv2.createTrackbar('Color', 'App', 0, 2, dummy)
 cv2.createTrackbar('Color_Map', 'App', 0, 20, dummy)
+
 count = 0
+p_preset = 1
 p_filter = 1
+_applyFilter = True
 while 1:
     colorScale = cv2.getTrackbarPos('Color', 'App')
     if colorScale == 0:
@@ -156,21 +217,21 @@ while 1:
         count+=1
         if colorScale == 0:
             try:
-                saveOutput(img=_colorOriginal, count=count)
+                saveOutput(img=_colorOriginal, count=count, applyFilter=_applyFilter, applyPreset= not _applyFilter)
             except:
                 print('Éxception')
                 cv2.imwrite(f'output/output{count}_{fileName}', colorModified)
         elif colorScale == 1:
             try:
                 temp = cv2.cvtColor(_colorOriginal, cv2.COLOR_BGR2GRAY)
-                saveOutput(img=temp, count=count, applyFilter=False)
+                saveOutput(img=temp, count=count, applyFilter=False, applyPreset=False)
             except:
                 print('Éxception')
                 cv2.imwrite(f'output/output{count}_{fileName}', grayModified)
         else:
             try:
                 temp = cv2.cvtColor(_colorOriginal, cv2.COLOR_BGR2HSV)
-                saveOutput(img=temp, count=count)
+                saveOutput(img=temp, count=count, applyFilter=_applyFilter, applyPreset= not _applyFilter)
             except:
                 print('Éxception')
                 cv2.imwrite(f'output/output{count}_{fileName}', colorModified)
@@ -179,12 +240,19 @@ while 1:
     contrast = cv2.getTrackbarPos('Contrast', 'App')
     brightness = cv2.getTrackbarPos('Brightness', 'App')
     gamma = cv2.getTrackbarPos('Gamma', 'App')
+    preset = cv2.getTrackbarPos('Presets', 'App')
     _filter = cv2.getTrackbarPos('Filters', 'App')
     _map = cv2.getTrackbarPos('Color_Map', 'App')
     
+    if not p_preset == preset:
+        colorFilter = presets[preset](colorOriginal)
+        hsvFiltter = presets[preset](hsvOriginal)
+        _applyFilter = False
+
     if not p_filter == _filter:
-            colorFilter = filters[_filter](colorOriginal)
-            hsvFiltter = filters[_filter](hsvOriginal)
+        colorFilter = filters[_filter](colorOriginal)
+        hsvFiltter = filters[_filter](hsvOriginal)     
+        _applyFilter = True
             
     colorModified = cv2.filter2D(colorFilter, -1, kernels[kernel])
     grayModified = cv2.filter2D(grayOriginal, -1, kernels[kernel])
@@ -201,5 +269,5 @@ while 1:
     grayModified = cv2.convertScaleAbs(grayModified, alpha=contrast*0.04, beta=brightness-75)
     hsvModified = cv2.convertScaleAbs(hsvModified, alpha=contrast*0.04, beta=brightness-75)
     p_filter = _filter
-    
+    p_preset = preset
 cv2.destroyAllWindows()
