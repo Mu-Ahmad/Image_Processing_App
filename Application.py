@@ -1,6 +1,6 @@
 import cv2
-import numpy as np
 import argparse
+import numpy as np
 from scipy.interpolate import UnivariateSpline
 
 def dummy(val):
@@ -16,10 +16,13 @@ def renderPreview(img):
         return img
     
 
-def saveOutput(img, count, applyFilter=True, applyPreset=True):
+def saveOutput(img, count, applyFilter=True, applyPreset=True, adjustHSV=False):
     kernel = cv2.getTrackbarPos('Kernels', 'App')
     contrast = cv2.getTrackbarPos('Contrast', 'App')
     brightness = cv2.getTrackbarPos('Brightness', 'App')
+    hue = cv2.getTrackbarPos('Hue', 'App')
+    sat = cv2.getTrackbarPos('Saturation', 'App')
+    val = cv2.getTrackbarPos('Value', 'App')
     gamma = cv2.getTrackbarPos('Gamma', 'App')
     if applyFilter:
         _filter = cv2.getTrackbarPos('Filters', 'App')
@@ -31,6 +34,8 @@ def saveOutput(img, count, applyFilter=True, applyPreset=True):
         filtered = img
     modified = cv2.filter2D(filtered, -1, kernels[kernel])
     modified = cv2.convertScaleAbs(modified, alpha=contrast*0.04, beta=brightness-75)
+    if adjustHSV:
+        modified = applyHSV(modified, hue, sat, val)
     if gamma:
         modified = adjustGamma(modified, gamma=gamma*0.05)
     if _map:
@@ -51,6 +56,21 @@ def adjustGamma(img, gamma=1.0):
     table = np.array([((i / 255.0) ** invGamma) * 255
         for i in np.arange(0, 256)]).astype("uint8")
     return cv2.LUT(img, table)
+
+def applyHSV(img, hue, sat, val):
+    hueShift = (hue - 300.0) / 2.0
+    satShift = (sat - 300.0) / 2.0
+    valShift = (val - 300.0) / 2.0
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype('float32')
+    (h, s, v) = cv2.split(img)
+    h += hueShift
+    s += satShift
+    v += valShift
+    h = np.clip(h,0,255)
+    s = np.clip(s,0,255)
+    v = np.clip(v,0,255)
+    imghsv = cv2.merge([h,s,v])
+    return cv2.cvtColor(imghsv.astype("uint8"), cv2.COLOR_HSV2BGR)
 
 def _create_LUT_8UC1(x, y):
         spl = UnivariateSpline(x, y)
@@ -138,6 +158,27 @@ def enhanceDetails(img):
 def style(img):
     return cv2.stylization(img)
 
+def adaptiveSketch(img):
+    return cv2.adaptiveThreshold(cv2.medianBlur(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 7), 255,
+                                cv2.ADAPTIVE_THRESH_MEAN_C,
+                                cv2.THRESH_BINARY, 9, 2)
+
+def cartoon(img):
+    try:
+        numDownSamples = 2 
+        numBilateralFilters = 7 
+        imgColor = img
+        for _ in range(numDownSamples):
+            imgColor = cv2.pyrDown(imgColor)
+        for _ in range(numBilateralFilters):
+            imgColor = cv2.bilateralFilter(imgColor, 9, 9, 7)
+        for _ in range(numDownSamples):
+            imgColor = cv2.pyrUp(imgColor)    
+        return cv2.bitwise_and(imgColor, cv2.cvtColor(adaptiveSketch(img), cv2.COLOR_GRAY2BGR))
+    except:
+        print('Exception')
+        return img
+
 def pencilSketch(img):
     imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     imgBlur = cv2.GaussianBlur(imgGray, (21, 21), 0, 0)
@@ -167,8 +208,8 @@ kernels = [identityKernel, sharpenKernel, boxBlur, gaussianKernel1,
 presets = [identity, enhanceDetails, style, drawSketch, drawSketchBW]
 
 filters = [identity, warmingFilter, warmingFilter1, creativeFilter, coolingFilter,
-           blueFilter,reduction, grayFilter, pencilSketch, solidSketchBW, solidSketch]
-
+           blueFilter,reduction, grayFilter, adaptiveSketch, pencilSketch, solidSketchBW,
+           solidSketch, cartoon]
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -192,6 +233,9 @@ cv2.createTrackbar('Gamma', 'App', 20, 100, dummy)
 cv2.createTrackbar('Kernels', 'App', 0, len(kernels)-1, dummy)
 cv2.createTrackbar('Presets', 'App', 0, len(presets)-1, dummy)
 cv2.createTrackbar('Filters', 'App', 0, len(filters)-1, dummy)
+cv2.createTrackbar('Hue', 'App', 300, 600, dummy)
+cv2.createTrackbar('Saturation', 'App', 300, 600, dummy)
+cv2.createTrackbar('Value', 'App', 300, 600, dummy)
 cv2.createTrackbar('Color', 'App', 0, 2, dummy)
 cv2.createTrackbar('Color_Map', 'App', 0, 20, dummy)
 
@@ -217,7 +261,7 @@ while 1:
         count+=1
         if colorScale == 0:
             try:
-                saveOutput(img=_colorOriginal, count=count, applyFilter=_applyFilter, applyPreset= not _applyFilter)
+                saveOutput(img=_colorOriginal, count=count, applyFilter=_applyFilter, applyPreset= not _applyFilter, adjustHSV=True)
             except:
                 print('Éxception')
                 cv2.imwrite(f'output/output{count}_{fileName}', colorModified)
@@ -242,6 +286,9 @@ while 1:
     gamma = cv2.getTrackbarPos('Gamma', 'App')
     preset = cv2.getTrackbarPos('Presets', 'App')
     _filter = cv2.getTrackbarPos('Filters', 'App')
+    hue = cv2.getTrackbarPos('Hue', 'App')
+    sat = cv2.getTrackbarPos('Saturation', 'App')
+    val = cv2.getTrackbarPos('Value', 'App')
     _map = cv2.getTrackbarPos('Color_Map', 'App')
     
     if not p_preset == preset:
@@ -257,6 +304,7 @@ while 1:
     colorModified = cv2.filter2D(colorFilter, -1, kernels[kernel])
     grayModified = cv2.filter2D(grayOriginal, -1, kernels[kernel])
     hsvModified = cv2.filter2D(hsvFiltter, -1, kernels[kernel])
+    colorModified = applyHSV(colorModified, hue, sat, val)
     if gamma:
         colorModified = adjustGamma(colorModified, gamma=gamma*0.05)
         grayModified = adjustGamma(grayModified, gamma=gamma*0.05)
